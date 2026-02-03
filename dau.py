@@ -2,12 +2,13 @@ import streamlit as st
 import joblib
 import pandas as pd
 import numpy as np
+from datetime import date # 引入日期处理模块
 
 # --- 1. 页面配置 ---
-st.set_page_config(page_title="DAU DIFF", page_icon="📈")
-st.title("📈 DAU DIFF")
+st.set_page_config(page_title="DAU 预测", page_icon="📈")
+st.title("📈 DAU 波动预测 (最终版)")
 
-# --- 2. 加载模型 (加了加载提示，防止你以为它卡死) ---
+# --- 2. 加载模型 ---
 @st.cache_resource
 def load_model():
     with st.spinner('正在搬运模型文件，请稍候...'):
@@ -17,21 +18,45 @@ try:
     model = load_model()
 except Exception as e:
     st.error(f"⚠️ 模型文件没找到！请确认 'dau_model_package.pkl' 在同一个文件夹里。\n报错: {e}")
-    st.stop() # 没模型就别往下跑了
+    st.stop()
 
 # --- 3. 特征定义 ---
 feature_names = [
-    "week", "is_holiday", "is_workday", "last_week_dau", 
-    "yesterday_push", "last_3days_ratio", "is_in_holiday_time_front", 
-    "is_in_holiday_time_behind", "is_firstday_holiday", "trend_ratio", "month"
+    "week", 
+    "is_holiday", 
+    "is_workday", 
+    "last_week_dau", 
+    "yesterday_push", 
+    "last_3days_ratio", 
+    "is_in_holiday_time_front", 
+    "is_in_holiday_time_behind", 
+    "is_firstday_holiday", 
+    "trend_ratio", 
+    "month",
+    "week_index"
 ]
 
 # --- 4. 参数输入区 ---
 st.sidebar.header("参数设置")
-pick_date = st.sidebar.date_input("选择预测日期")
+pick_date = st.sidebar.date_input("选择预测日期", value=date.today())
+
+# --- 关键逻辑修正：计算连续周数 ---
+# 1. 设定基准日期：2023年1月1日
+base_date = date(2023, 1, 1)
+
+# 2. 计算当前日期提取出的特征
 month = pick_date.month
 week = pick_date.weekday() + 1
 
+# 3. 计算 week_index (距离 2023-01-01 过去了多少周)
+# 算法：(当前日期 - 基准日期) 的天数 // 7 + 1
+delta_days = (pick_date - base_date).days
+week_index = (delta_days // 7) + 1 
+
+# 在界面上显示一下，让你确认对不对
+st.sidebar.info(f"📅 选中日期是：自2023年1月1日以来的第 {week_index} 周")
+
+# --- 其他输入 ---
 is_holiday = st.sidebar.selectbox("是否为节假日", [0, 1])
 is_workday = st.sidebar.selectbox("是否为工作日", [0, 1])
 last_week_dau = st.sidebar.number_input("上周 DAU", value=12000)
@@ -40,26 +65,25 @@ last_3days_ratio = st.sidebar.number_input("近3日次留率均值", 0.0, 1.0, 0
 trend_ratio = st.sidebar.number_input("趋势系数 (Trend)", 0.0, 100.0, 0.98)
 
 with st.sidebar.expander("更多节假日特征"):
-    is_in_holiday_time_front = st.selectbox("假期前段", [0,1,2,3,4,5])
-    is_in_holiday_time_behind = st.selectbox("假期后段", [0,1,2,3,4,5])
+    is_in_holiday_time_front = st.selectbox("假期前段", [0,1])
+    is_in_holiday_time_behind = st.selectbox("假期后段", [0,1])
     is_firstday_holiday = st.selectbox("是否假期首日", [0, 1])
 
-# --- 5. 核心预测 (KeyError 修复版) ---
+# --- 5. 核心预测 ---
 if st.button("🚀 开始预测"):
     # 构造数据
     input_data = pd.DataFrame(
         [[
             week, is_holiday, is_workday, last_week_dau, yesterday_push,
             last_3days_ratio, is_in_holiday_time_front, is_in_holiday_time_behind,
-            is_firstday_holiday, trend_ratio, month
+            is_firstday_holiday, trend_ratio, month, week_index
         ]], 
         columns=feature_names
     )
 
     try:
-        # 判断是否为字典包
         if isinstance(model, dict):
-            # 修复点：这里改成了 'xgb_model' 和 'rf_model'
+            # 你的字典里确实是这俩名字
             xgb_pred = model['xgb_model'].predict(input_data)[0]
             rf_pred = model['rf_model'].predict(input_data)[0]
             
@@ -74,4 +98,3 @@ if st.button("🚀 开始预测"):
 
     except Exception as e:
         st.error(f"❌ 运行出错: {e}")
-        st.write("调试信息：你的模型里的钥匙是：", model.keys() if isinstance(model, dict) else "不是字典")
