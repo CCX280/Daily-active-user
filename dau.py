@@ -2,11 +2,11 @@ import streamlit as st
 import joblib
 import pandas as pd
 import numpy as np
-from datetime import date # 引入日期处理模块
+from datetime import date
 
 # --- 1. 页面配置 ---
-st.set_page_config(page_title="DAU 预测", page_icon="📈")
-st.title("📈 DAU 波动预测 (最终版)")
+st.set_page_config(page_title="DAU diff", page_icon="📈")
+st.title("📈 DAU diff")
 
 # --- 2. 加载模型 ---
 @st.cache_resource
@@ -40,23 +40,16 @@ feature_names = [
 st.sidebar.header("参数设置")
 pick_date = st.sidebar.date_input("选择预测日期", value=date.today())
 
-# --- 关键逻辑修正：计算连续周数 ---
-# 1. 设定基准日期：2023年1月1日
+# 自动计算时间特征 (基准日 2023-01-01)
 base_date = date(2023, 1, 1)
-
-# 2. 计算当前日期提取出的特征
 month = pick_date.month
 week = pick_date.weekday() + 1
-
-# 3. 计算 week_index (距离 2023-01-01 过去了多少周)
-# 算法：(当前日期 - 基准日期) 的天数 // 7 + 1
 delta_days = (pick_date - base_date).days
 week_index = (delta_days // 7) + 1 
 
-# 在界面上显示一下，让你确认对不对
 st.sidebar.info(f"📅 选中日期是：自2023年1月1日以来的第 {week_index} 周")
 
-# --- 其他输入 ---
+# 其他输入
 is_holiday = st.sidebar.selectbox("是否为节假日", [0, 1])
 is_workday = st.sidebar.selectbox("是否为工作日", [0, 1])
 last_week_dau = st.sidebar.number_input("上周 DAU", value=12000)
@@ -69,9 +62,8 @@ with st.sidebar.expander("更多节假日特征"):
     is_in_holiday_time_behind = st.selectbox("假期后段", [0,1])
     is_firstday_holiday = st.selectbox("是否假期首日", [0, 1])
 
-# --- 5. 核心预测 ---
+# --- 5. 核心预测 (精准匹配版) ---
 if st.button("🚀 开始预测"):
-    # 构造数据
     input_data = pd.DataFrame(
         [[
             week, is_holiday, is_workday, last_week_dau, yesterday_push,
@@ -83,14 +75,19 @@ if st.button("🚀 开始预测"):
 
     try:
         if isinstance(model, dict):
-            # 你的字典里确实是这俩名字
+            # 1. 预测
             xgb_pred = model['xgb_model'].predict(input_data)[0]
             rf_pred = model['rf_model'].predict(input_data)[0]
             
-            w = model.get('weights', [0.7, 0.3])
-            final_pred = (w[0] * xgb_pred) + (w[1] * rf_pred)
+            # 2. 读取权重 (修正点：用键名读取，而不是索引)
+            weights_dict = model.get("weights") # 这是一个字典 {"xgb": 0.7, "rf": 0.3}
+            w_xgb = weights_dict["xgb"]
+            w_rf = weights_dict["rf"]
             
-            st.info(f"💡 融合详情: XGB({int(xgb_pred)}) x {w[0]} + RF({int(rf_pred)}) x {w[1]}")
+            # 3. 融合
+            final_pred = (w_xgb * xgb_pred) + (w_rf * rf_pred)
+            
+            st.info(f"💡 融合详情: XGB({int(xgb_pred)}) x {w_xgb} + RF({int(rf_pred)}) x {w_rf}")
         else:
             final_pred = model.predict(input_data)[0]
 
