@@ -4,8 +4,8 @@ import pandas as pd
 import numpy as np
 
 # --- 1. 页面配置 ---
-st.set_page_config(page_title="DAU 预测", page_icon="📈")
-st.title("📈 DAU 波动预测 (最终版)")
+st.set_page_config(page_title="DAU DIFF", page_icon="📈")
+st.title("📈 DAU DIFF")
 
 # --- 2. 加载模型 (加了加载提示，防止你以为它卡死) ---
 @st.cache_resource
@@ -40,7 +40,7 @@ last_3days_ratio = st.sidebar.number_input("近3日次留率均值", 0.0, 1.0, 0
 trend_ratio = st.sidebar.number_input("趋势系数 (Trend)", 0.0, 100.0, 0.98)
 
 with st.sidebar.expander("更多节假日特征"):
-    is_in_holiday_time_front = st.selectbox("假期前段", [0,1，2,3,4,5])
+    is_in_holiday_time_front = st.selectbox("假期前段", [0,1,2,3,4,5])
     is_in_holiday_time_behind = st.selectbox("假期后段", [0,1,2,3,4,5])
     is_firstday_holiday = st.selectbox("是否假期首日", [0, 1])
 
