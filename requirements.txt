@@ -5,3 +5,5 @@ joblib
 xgboost
 scikit-learn
 plotly
+pygame>=2.0.0
+openpyxl

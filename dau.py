@@ -1,7 +1,6 @@
 import streamlit as st
 import joblib
 import pandas as pd
-import numpy as np
 from datetime import date
 
 # --- 1. 页面配置 ---
@@ -38,6 +37,17 @@ feature_names = [
 
 # --- 4. 参数输入区 ---
 st.sidebar.header("参数设置")
+# 文件上传：支持 .xlsx
+uploaded_file = st.sidebar.file_uploader("上传数据文件 (.xlsx)", type=["xlsx"])
+uploaded_df = None
+if uploaded_file is not None:
+    try:
+        uploaded_df = pd.read_excel(uploaded_file)
+        st.sidebar.success(f"已读取上传文件，形状: {uploaded_df.shape}")
+        # 展示前几行作为预览
+        st.sidebar.dataframe(uploaded_df.head())
+    except Exception as e:
+        st.sidebar.error(f"读取上传文件失败: {e}")
 pick_date = st.sidebar.date_input("选择预测日期", value=date.today())
 
 # 自动计算时间特征 (基准日 2023-01-01)
