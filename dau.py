@@ -1,6 +1,7 @@
 import streamlit as st
 import joblib
 import pandas as pd
+import io
 from datetime import date
 
 # --- 1. 页面配置 ---
@@ -71,6 +72,47 @@ with st.sidebar.expander("更多节假日特征"):
     is_in_holiday_time_front = st.selectbox("假期前段", [0,1])
     is_in_holiday_time_behind = st.selectbox("假期后段", [0,1])
     is_firstday_holiday = st.selectbox("是否假期首日", [0, 1])
+
+# 如果上传了 Excel，则尝试对每一行进行批量预测并展示
+if uploaded_df is not None:
+    st.header("📥 上传数据批量预测结果")
+    df = uploaded_df.copy()
+    # 检查必要特征列是否存在
+    missing_cols = [c for c in feature_names if c not in df.columns]
+    if missing_cols:
+        st.error(f"上传的 Excel 缺少必要特征列：{missing_cols}。请确保包含这些列，且列名与特征名匹配。")
+    else:
+        X = df[feature_names].copy()
+        try:
+            if isinstance(model, dict):
+                xgb_preds = model['xgb_model'].predict(X)
+                rf_preds = model['rf_model'].predict(X)
+                weights_dict = model.get('weights', {"xgb": 0.7, "rf": 0.3})
+                w_xgb = weights_dict.get('xgb', 0.7)
+                w_rf = weights_dict.get('rf', 0.3)
+                preds = (w_xgb * xgb_preds) + (w_rf * rf_preds)
+                st.info(f"💡 融合详情: 使用权重 XGB={w_xgb}, RF={w_rf}")
+            else:
+                preds = model.predict(X)
+
+            df['predicted_dau'] = pd.Series(preds).round().astype(int)
+            st.success(f"已对上传表格的 {len(df)} 行进行预测")
+
+            # 美化展示：数值千分位格式 + 高亮预测最大值
+            num_cols = df.select_dtypes(include='number').columns.tolist()
+            fmt = {c: '{:,.0f}' for c in num_cols}
+            styled = df.style.format(fmt).highlight_max(subset=['predicted_dau'], color='#b6e3a8')
+            st.write(styled)
+
+            # 提供下载带预测结果的 Excel
+            towrite = io.BytesIO()
+            with pd.ExcelWriter(towrite, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+            towrite.seek(0)
+            st.download_button("下载带预测结果的 Excel", data=towrite, file_name="predicted_results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        except Exception as e:
+            st.error(f"批量预测失败: {e}")
 
 # --- 5. 核心预测 (精准匹配版) ---
 if st.button("🚀 开始预测"):
